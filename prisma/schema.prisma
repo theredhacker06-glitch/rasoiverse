@@ -1,0 +1,185 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model with role-based access
+model User {
+  id                    String    @id @default(cuid())
+  name                  String?
+  email                 String    @unique
+  emailVerified         DateTime?
+  password              String?
+  image                 String?
+  role                  String    @default("USER") // USER or ADMIN
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  accounts              Account[]
+  sessions              Session[]
+  recipes               Recipe[]
+  favorites             Favorite[]
+  ratings               Rating[]
+  comments              Comment[]
+  communityPosts        CommunityPost[]
+  recipeSubmissions     RecipeSubmission[]
+
+  @@index([email])
+  @@index([role])
+}
+
+// OAuth accounts
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+// Sessions
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Recipe model
+model Recipe {
+  id                    String    @id @default(cuid())
+  title                 String
+  description           String    @db.Text
+  state                 String    // Maharashtra, Gujarat, etc.
+  category              String    // Vegetarian, Non-Veg, Vegan, etc.
+  ingredients           String    @db.Text // JSON array
+  instructions          String    @db.Text // JSON array
+  cookingTime           Int       // in minutes
+  preparationTime       Int       // in minutes
+  servings              Int
+  difficultyLevel       String    // Easy, Medium, Hard
+  imageUrl              String?
+  audioUrl              String?   // Cloudinary audio file
+  audioLanguage         String?   // English, Hindi, Marathi
+  isFeatured            Boolean   @default(false)
+  status                String    @default("PUBLISHED") // PUBLISHED, DRAFT
+  createdBy             String
+  publishedBy           String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  author                User      @relation(fields: [createdBy], references: [id])
+  favorites             Favorite[]
+  ratings               Rating[]
+  comments              Comment[]
+
+  @@index([state])
+  @@index([category])
+  @@index([status])
+  @@index([createdBy])
+}
+
+// User favorites
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  recipeId  String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe    Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recipeId])
+  @@index([userId])
+  @@index([recipeId])
+}
+
+// Recipe ratings
+model Rating {
+  id        String   @id @default(cuid())
+  userId    String
+  recipeId  String
+  rating    Int      // 1-5
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe    Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recipeId])
+  @@index([userId])
+  @@index([recipeId])
+}
+
+// Recipe comments
+model Comment {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  userId    String
+  recipeId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe    Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([recipeId])
+}
+
+// Community posts for discussions
+model CommunityPost {
+  id        String   @id @default(cuid())
+  title     String
+  content   String   @db.Text
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Recipe submissions (moderation queue)
+model RecipeSubmission {
+  id              String   @id @default(cuid())
+  title           String
+  content         String   @db.Text // Natural language submission
+  storyOrNotes    String?  @db.Text
+  imageUrl        String?
+  userId          String
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  adminNotes      String?  @db.Text
+  approvedRecipeId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
